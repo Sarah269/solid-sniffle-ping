@@ -1,0 +1,1100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Table Tennis</title>
+  <style>
+    /* =====================================================
+       GLOBAL RESET & BASE STYLES
+       ===================================================== */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #1a1a2e;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      min-height: 100vh;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      color: #f0e6d3;
+      padding: 20px 10px 30px;
+    }
+
+    h1 {
+      font-size: 2rem;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: #f0e6d3;
+      margin-bottom: 16px;
+      text-shadow: 0 2px 8px #0008;
+    }
+
+    /* =====================================================
+       SETTINGS PANEL (difficulty + ball speed + win score)
+       ===================================================== */
+    #settings {
+      display: flex;
+      gap: 20px;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: center;
+      background: #16213e;
+      border: 1px solid #2e4070;
+      border-radius: 10px;
+      padding: 12px 24px;
+      margin-bottom: 16px;
+    }
+
+    #settings label {
+      font-size: 0.85rem;
+      color: #aab0c0;
+      margin-right: 6px;
+    }
+
+    /* Pill-style radio button groups (used for difficulty AND ball speed) */
+    .pill-group {
+      display: flex;
+      gap: 6px;
+    }
+
+    .pill-group input[type="radio"] { display: none; }
+
+    .pill-group label {
+      cursor: pointer;
+      padding: 5px 14px;
+      border-radius: 20px;
+      border: 1px solid #2e4070;
+      background: #1a1a2e;
+      color: #aab0c0;
+      font-size: 0.82rem;
+      transition: background 0.2s, color 0.2s;
+      margin: 0;
+    }
+
+    .pill-group input[type="radio"]:checked + label {
+      background: #3a7bd5;
+      color: #fff;
+      border-color: #3a7bd5;
+    }
+
+    /* Win-score number input */
+    #winScore {
+      width: 54px;
+      padding: 4px 8px;
+      border-radius: 6px;
+      border: 1px solid #2e4070;
+      background: #1a1a2e;
+      color: #f0e6d3;
+      font-size: 0.9rem;
+      text-align: center;
+    }
+
+    /* =====================================================
+       CANVAS WRAPPER
+       ===================================================== */
+    #canvasWrapper {
+      position: relative;
+      border: 3px solid #2e4070;
+      border-radius: 6px;
+      box-shadow: 0 8px 32px #0008;
+    }
+
+    #gameCanvas {
+      display: block;
+      border-radius: 3px;
+    }
+
+    /* =====================================================
+       IN-GAME CONTROLS BAR (Pause + Cancel)
+       Sits between canvas and score bar, only visible during play
+       ===================================================== */
+    #gameControls {
+      display: flex; /* always visible */
+      gap: 10px;
+      justify-content: center;
+      margin-top: 10px;
+      width: 100%;
+      max-width: 640px;
+    }
+
+    /* Shared style for Pause and Cancel buttons */
+    .ctrl-btn {
+      padding: 7px 24px;
+      border-radius: 20px;
+      border: 1px solid #2e4070;
+      font-size: 0.85rem;
+      cursor: pointer;
+      letter-spacing: 0.5px;
+      transition: background 0.2s, transform 0.1s;
+    }
+
+    .ctrl-btn:active { transform: scale(0.97); }
+
+    /* Dimmed state when no game is running */
+    .ctrl-btn:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+
+    /* Pause button — blue accent */
+    #pauseBtn {
+      background: #1e3a6e;
+      color: #a0c4ff;
+      border-color: #3a7bd5;
+    }
+    #pauseBtn:hover { background: #2a4a8e; }
+
+    /* Cancel button — subtle red accent */
+    #cancelBtn {
+      background: #3e1a1a;
+      color: #ff9999;
+      border-color: #7d3535;
+    }
+    #cancelBtn:hover { background: #5a2222; }
+
+    /* =====================================================
+       SCORE BAR
+       ===================================================== */
+    #scoreBar {
+      display: flex;
+      width: 100%;
+      max-width: 640px;
+      justify-content: space-between;
+      align-items: center;
+      background: #16213e;
+      border: 1px solid #2e4070;
+      border-radius: 10px;
+      padding: 10px 32px;
+      margin-top: 10px;
+      font-size: 1rem;
+    }
+
+    .score-label { color: #aab0c0; font-size: 0.8rem; }
+
+    .score-value {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #f0e6d3;
+    }
+
+    #scoreCenter {
+      text-align: center;
+      font-size: 0.75rem;
+      color: #aab0c0;
+    }
+
+    /* =====================================================
+       OVERLAY — start screen, pause screen, game over
+       ===================================================== */
+    #overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(10, 14, 30, 0.82);
+      border-radius: 3px;
+      gap: 14px;
+      z-index: 10;
+    }
+
+    #overlay h2 {
+      font-size: 1.6rem;
+      letter-spacing: 2px;
+      color: #f0e6d3;
+    }
+
+    #overlay p {
+      font-size: 0.9rem;
+      color: #aab0c0;
+      text-align: center;
+      max-width: 300px;
+      line-height: 1.5;
+    }
+
+    /* Primary action button (Start / Resume / Play Again) */
+    #startBtn {
+      padding: 10px 30px;
+      border-radius: 24px;
+      border: none;
+      background: #3a7bd5;
+      color: #fff;
+      font-size: 1rem;
+      cursor: pointer;
+      letter-spacing: 1px;
+      transition: background 0.2s, transform 0.1s;
+    }
+    #startBtn:hover  { background: #4a8be5; }
+    #startBtn:active { transform: scale(0.97); }
+
+    /* Secondary overlay button (e.g. "Cancel Game" shown on pause screen) */
+    #overlayCancelBtn {
+      display: none; /* shown only on pause overlay */
+      padding: 7px 22px;
+      border-radius: 20px;
+      border: 1px solid #7d3535;
+      background: #3e1a1a;
+      color: #ff9999;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    #overlayCancelBtn:hover { background: #5a2222; }
+
+    /* =====================================================
+       CONTROLS HINT
+       ===================================================== */
+    #hint {
+      margin-top: 10px;
+      font-size: 0.75rem;
+      color: #555e80;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>🏓 Table Tennis</h1>
+
+  <!-- =====================================================
+       SETTINGS PANEL
+       Settings are locked once a game starts (re-enabled on game end)
+       ===================================================== -->
+  <div id="settings">
+
+    <!-- AI difficulty selector -->
+    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:center;">
+      <label>Difficulty:</label>
+      <div class="pill-group">
+        <input type="radio" name="diff" id="dEasy"   value="easy"   checked />
+        <label for="dEasy">Easy</label>
+        <input type="radio" name="diff" id="dMedium" value="medium" />
+        <label for="dMedium">Medium</label>
+        <input type="radio" name="diff" id="dHard"   value="hard"   />
+        <label for="dHard">Hard</label>
+      </div>
+    </div>
+
+    <!-- Ball speed selector (independent of difficulty) -->
+    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:center;">
+      <label>Ball speed:</label>
+      <div class="pill-group">
+        <input type="radio" name="bspeed" id="bsSlow"   value="slow"   />
+        <label for="bsSlow">Slow</label>
+        <input type="radio" name="bspeed" id="bsMedium" value="medium" checked />
+        <label for="bsMedium">Medium</label>
+        <input type="radio" name="bspeed" id="bsFast"   value="fast"   />
+        <label for="bsFast">Fast</label>
+      </div>
+    </div>
+
+    <!-- Win-score selector -->
+    <div style="display:flex; align-items:center; gap:8px;">
+      <label for="winScore">Win at:</label>
+      <input type="number" id="winScore" value="11" min="1" max="99" />
+      <label style="margin:0;">pts</label>
+    </div>
+
+  </div>
+
+  <!-- =====================================================
+       GAME CANVAS
+       ===================================================== -->
+  <div id="canvasWrapper">
+    <canvas id="gameCanvas" width="640" height="400"></canvas>
+
+    <!-- Overlay: shown on start screen, pause, and game over -->
+    <div id="overlay">
+      <h2 id="overlayTitle">Table Tennis</h2>
+      <p  id="overlayMsg">Use ↑ ↓ arrow keys to move your paddle.<br>First to reach the win score wins!</p>
+      <button id="startBtn">Start Game</button>
+      <!-- Only visible when paused — lets player cancel without resuming -->
+      <button id="overlayCancelBtn">Cancel Game</button>
+    </div>
+  </div>
+
+  <!-- =====================================================
+       IN-GAME CONTROLS (Pause / Cancel)
+       Shown below canvas only while a game is active
+       ===================================================== -->
+  <div id="gameControls">
+    <button class="ctrl-btn" id="pauseBtn" disabled>⏸ Pause &nbsp;<span style="font-size:0.75em;opacity:0.6;">[P]</span></button>
+    <button class="ctrl-btn" id="cancelBtn" disabled>✕ Cancel Game</button>
+  </div>
+
+  <!-- =====================================================
+       SCORE BAR
+       ===================================================== -->
+  <div id="scoreBar">
+    <div style="text-align:center;">
+      <div class="score-label">YOU</div>
+      <div class="score-value" id="playerScoreEl">0</div>
+    </div>
+
+    <div id="scoreCenter">
+      <div>First to <span id="winScoreDisplay">11</span></div>
+    </div>
+
+    <div style="text-align:center;">
+      <div class="score-label">COMPUTER</div>
+      <div class="score-value" id="cpuScoreEl">0</div>
+    </div>
+  </div>
+
+  <div id="hint">Move mouse over the court &nbsp;or&nbsp; use ↑ / ↓ keys to control your paddle &nbsp;|&nbsp; P to pause</div>
+
+
+  <!-- =====================================================
+       GAME SCRIPT
+       ===================================================== -->
+  <script>
+    /* --------------------------------------------------
+       CANVAS & CONTEXT
+    -------------------------------------------------- */
+    const canvas = document.getElementById('gameCanvas');
+    const ctx    = canvas.getContext('2d');
+
+    /* --------------------------------------------------
+       UI REFERENCES
+    -------------------------------------------------- */
+    const overlay           = document.getElementById('overlay');
+    const overlayTitle      = document.getElementById('overlayTitle');
+    const overlayMsg        = document.getElementById('overlayMsg');
+    const startBtn          = document.getElementById('startBtn');
+    const overlayCancelBtn  = document.getElementById('overlayCancelBtn');
+    const gameControls      = document.getElementById('gameControls');
+    const pauseBtn          = document.getElementById('pauseBtn');
+    const cancelBtn         = document.getElementById('cancelBtn');
+    const playerScoreEl     = document.getElementById('playerScoreEl');
+    const cpuScoreEl        = document.getElementById('cpuScoreEl');
+    const winScoreDisplay   = document.getElementById('winScoreDisplay');
+    const winScoreInput     = document.getElementById('winScore');
+    const settingsPanel     = document.getElementById('settings');
+
+    /* --------------------------------------------------
+       CONSTANTS — canvas dimensions & object sizes
+    -------------------------------------------------- */
+    const W           = canvas.width;   // 640
+    const H           = canvas.height;  // 400
+    const PADDLE_W    = 12;
+    const PADDLE_H    = 72;
+    const BALL_RADIUS = 8;
+    const NET_W       = 4;
+
+    /* --------------------------------------------------
+       COLOUR PALETTE
+    -------------------------------------------------- */
+    const COLOR_TABLE  = '#2d6a4f'; // green felt
+    const COLOR_LINES  = '#1b4332'; // darker green for edge lines
+    const COLOR_NET    = '#c8b89a'; // net beige
+    const COLOR_PADDLE = '#d4b896'; // paddle beige
+    const COLOR_BALL   = '#ffffff'; // white ball
+
+    /* --------------------------------------------------
+       DIFFICULTY SETTINGS
+       cpuSpeed  — max pixels the CPU paddle moves per frame
+       cpuJitter — random ±offset (px) applied to CPU's target each frame;
+                   higher = more mistakes, easier to beat
+       The actual ball speed is set separately via the ball-speed selector.
+    -------------------------------------------------- */
+    const DIFFICULTY = {
+      easy:   { cpuSpeed: 2.2, cpuJitter: 22 },
+      medium: { cpuSpeed: 3.8, cpuJitter: 10 },
+      hard:   { cpuSpeed: 5.8, cpuJitter: 2  },
+    };
+
+    /* --------------------------------------------------
+       BALL SPEED LEVELS
+       Base launch speed in pixels per frame.
+       Speed increases by 3% on each paddle hit (see physics section).
+    -------------------------------------------------- */
+    const BALL_SPEEDS = {
+      slow:   3.5,
+      medium: 5.5,
+      fast:   8.0,
+    };
+
+    /* --------------------------------------------------
+       GAME STATE FLAGS
+    -------------------------------------------------- */
+    let playerScore = 0;
+    let cpuScore    = 0;
+    let winScore    = 11;
+    let animId      = null;    // requestAnimationFrame handle
+    let gameRunning = false;   // true while the game loop is active
+    let gamePaused  = false;   // true when paused (loop is suspended)
+
+    /* --------------------------------------------------
+       GAME OBJECTS
+    -------------------------------------------------- */
+
+    // Player paddle (left side)
+    const player = {
+      x: 20,
+      y: H / 2 - PADDLE_H / 2,
+      w: PADDLE_W,
+      h: PADDLE_H,
+    };
+
+    // CPU paddle (right side)
+    const cpu = {
+      x: W - 20 - PADDLE_W,
+      y: H / 2 - PADDLE_H / 2,
+      w: PADDLE_W,
+      h: PADDLE_H,
+    };
+
+    // Ball object — vx/vy set by resetBall()
+    const ball = {
+      x: W / 2,
+      y: H / 2,
+      r: BALL_RADIUS,
+      vx: 0,
+      vy: 0,
+    };
+
+    /* --------------------------------------------------
+       SCORE FLASH EFFECT
+       Briefly shows "+1" on the scoring side after each point
+    -------------------------------------------------- */
+    let scoreFx = null; // { x, y, text, alpha, timer }
+
+    function triggerScoreFx(x, y, text) {
+      scoreFx = { x, y, text, alpha: 1.0, timer: 60 };
+    }
+
+    /* --------------------------------------------------
+       KEYBOARD INPUT
+       Tracks which keys are currently held down
+    -------------------------------------------------- */
+    const keys = {};
+
+    window.addEventListener('keydown', e => {
+      keys[e.key] = true;
+
+      // Prevent page scroll on arrow keys during play
+      if (['ArrowUp', 'ArrowDown'].includes(e.key)) e.preventDefault();
+
+      // P key toggles pause (only while a game is active)
+      if (e.key === 'p' || e.key === 'P') togglePause();
+    });
+
+    window.addEventListener('keyup', e => { keys[e.key] = false; });
+
+    /* --------------------------------------------------
+       MOUSE INPUT
+       The player paddle's centre tracks the mouse Y position
+       over the canvas. Works alongside arrow keys — whichever
+       moved last takes effect (both update player.y each frame).
+    -------------------------------------------------- */
+    let mouseY = null; // null means no mouse input yet
+
+    canvas.addEventListener('mousemove', e => {
+      if (!gameRunning || gamePaused) return;
+      const rect = canvas.getBoundingClientRect();
+      // Convert mouse position to canvas-space Y coordinate
+      const scaleY = canvas.height / rect.height;
+      mouseY = (e.clientY - rect.top) * scaleY;
+    });
+
+    // Stop tracking when mouse leaves the canvas
+    canvas.addEventListener('mouseleave', () => { mouseY = null; });
+
+    /* --------------------------------------------------
+       HELPER: read currently selected difficulty config
+    -------------------------------------------------- */
+    function getDiffConfig() {
+      const diff = document.querySelector('input[name="diff"]:checked').value;
+      return DIFFICULTY[diff];
+    }
+
+    /* --------------------------------------------------
+       HELPER: read currently selected ball speed (px/frame)
+    -------------------------------------------------- */
+    function getBallSpeed() {
+      const key = document.querySelector('input[name="bspeed"]:checked').value;
+      return BALL_SPEEDS[key];
+    }
+
+    /* --------------------------------------------------
+       WIN SCORE INPUT — keep score bar display in sync
+    -------------------------------------------------- */
+    winScoreInput.addEventListener('input', () => {
+      winScore = Math.max(1, parseInt(winScoreInput.value) || 1);
+      winScoreDisplay.textContent = winScore;
+    });
+
+    /* --------------------------------------------------
+       BALL RESET
+       Places ball at centre and launches it toward the side
+       that just lost a point (or a random side on first serve).
+    -------------------------------------------------- */
+    function resetBall(towardPlayer) {
+      ball.x = W / 2;
+      ball.y = H / 2;
+
+      const speed = getBallSpeed();
+
+      // Decide horizontal direction
+      const xDir = (towardPlayer === undefined)
+        ? (Math.random() < 0.5 ? 1 : -1)   // random on first serve
+        : (towardPlayer ? -1 : 1);           // toward whoever just lost
+
+      // Add a small random vertical angle (±20°) for variety
+      const angle = (Math.random() * 40 - 20) * (Math.PI / 180);
+      ball.vx = Math.cos(angle) * speed * xDir;
+      ball.vy = Math.sin(angle) * speed;
+    }
+
+    /* --------------------------------------------------
+       GAME INITIALISATION
+       Resets all state, scores, and paddle positions
+    -------------------------------------------------- */
+    function initGame() {
+      playerScore = 0;
+      cpuScore    = 0;
+      gamePaused  = false;
+      winScore    = Math.max(1, parseInt(winScoreInput.value) || 11);
+      winScoreDisplay.textContent = winScore;
+
+      playerScoreEl.textContent = '0';
+      cpuScoreEl.textContent    = '0';
+
+      player.y = H / 2 - PADDLE_H / 2;
+      cpu.y    = H / 2 - PADDLE_H / 2;
+
+      scoreFx = null;
+      resetBall(); // random first serve
+    }
+
+    /* --------------------------------------------------
+       LOCK / UNLOCK SETTINGS
+       Settings are disabled while a game is in progress
+       so changing difficulty mid-game can't be exploited.
+    -------------------------------------------------- */
+    function lockSettings()   { settingsPanel.style.opacity = '0.45'; settingsPanel.style.pointerEvents = 'none'; }
+    function unlockSettings() { settingsPanel.style.opacity = '';     settingsPanel.style.pointerEvents = ''; }
+
+    function enableGameControls()  { pauseBtn.disabled = false; cancelBtn.disabled = false; }
+    function disableGameControls() { pauseBtn.disabled = true;  cancelBtn.disabled = true; }
+
+    /* --------------------------------------------------
+       SHOW OVERLAY
+       Centralises how the overlay panel is configured
+       mode: 'start' | 'pause' | 'win' | 'cancel'
+    -------------------------------------------------- */
+    function showOverlay(mode, extra) {
+      overlay.style.display = 'flex';
+
+      if (mode === 'start') {
+        overlayTitle.textContent       = 'Table Tennis';
+        overlayMsg.textContent         = 'Move your mouse over the court, or use ↑ ↓ arrow keys, to control your paddle. First to reach the win score wins!';
+        startBtn.textContent           = 'Start Game';
+        overlayCancelBtn.style.display = 'none';
+      }
+
+      else if (mode === 'pause') {
+        overlayTitle.textContent       = '⏸ Paused';
+        overlayMsg.textContent         = 'Game paused.\nPress P or click Resume to continue.';
+        startBtn.textContent           = '▶ Resume';
+        overlayCancelBtn.style.display = 'inline-block'; // show cancel option while paused
+      }
+
+      else if (mode === 'win') {
+        const playerWon = extra.playerWon;
+        overlayTitle.textContent       = playerWon ? '🎉 You Win!' : '💻 Computer Wins';
+        overlayMsg.textContent         = playerWon
+          ? `You beat the computer ${playerScore}–${cpuScore}! Well played!`
+          : `Computer won ${cpuScore}–${playerScore}. Better luck next time!`;
+        startBtn.textContent           = 'Play Again';
+        overlayCancelBtn.style.display = 'none';
+      }
+
+      else if (mode === 'cancel') {
+        overlayTitle.textContent       = 'Game Cancelled';
+        overlayMsg.textContent         = `Score was ${playerScore}–${cpuScore} when you quit.`;
+        startBtn.textContent           = 'New Game';
+        overlayCancelBtn.style.display = 'none';
+      }
+    }
+
+    /* --------------------------------------------------
+       HIDE OVERLAY
+    -------------------------------------------------- */
+    function hideOverlay() {
+      overlay.style.display = 'none';
+      overlayCancelBtn.style.display = 'none';
+    }
+
+    /* --------------------------------------------------
+       PAUSE / RESUME TOGGLE
+       Suspends the game loop and shows the pause overlay.
+       Can be triggered by the Pause button or the P key.
+    -------------------------------------------------- */
+    function togglePause() {
+      if (!gameRunning) return; // nothing to pause
+
+      if (!gamePaused) {
+        // --- PAUSE ---
+        gamePaused = true;
+        cancelAnimationFrame(animId); // stop the loop
+        animId = null;
+        pauseBtn.textContent = '▶ Resume [P]';
+        showOverlay('pause');
+      } else {
+        // --- RESUME ---
+        resumeGame();
+      }
+    }
+
+    /* --------------------------------------------------
+       RESUME GAME
+       Called from the Resume button or the overlay start button
+       when the game was previously paused.
+    -------------------------------------------------- */
+    function resumeGame() {
+      gamePaused = false;
+      hideOverlay();
+      pauseBtn.textContent = '⏸ Pause  [P]';
+      gameLoop(); // restart the animation loop
+    }
+
+    /* --------------------------------------------------
+       CANCEL GAME
+       Stops the current game without declaring a winner.
+    -------------------------------------------------- */
+    function cancelGame() {
+      gameRunning = false;
+      gamePaused  = false;
+      if (animId) { cancelAnimationFrame(animId); animId = null; }
+
+      disableGameControls();
+      unlockSettings();
+      showOverlay('cancel');
+    }
+
+    /* --------------------------------------------------
+       CHECK WIN CONDITION
+       Called after every point; ends the game if either
+       player has reached the target score.
+    -------------------------------------------------- */
+    function checkWin() {
+      if (playerScore >= winScore || cpuScore >= winScore) {
+        gameRunning = false;
+        if (animId) { cancelAnimationFrame(animId); animId = null; }
+
+        disableGameControls();
+        unlockSettings();
+        const _playerWon = playerScore >= winScore;
+        if (_playerWon) soundWin(); else soundLose();
+        showOverlay('win', { playerWon: _playerWon });
+      }
+    }
+
+    /* --------------------------------------------------
+       BUTTON EVENT HANDLERS
+    -------------------------------------------------- */
+
+    // Start / Resume / Play Again button (inside overlay)
+    startBtn.addEventListener('click', () => {
+      if (gamePaused) {
+        // Overlay's "Resume" action
+        resumeGame();
+        return;
+      }
+
+      // Fresh game start (or Play Again after game over)
+      ensureAudio();
+      hideOverlay();
+      initGame();
+
+      if (animId) cancelAnimationFrame(animId);
+      gameRunning = true;
+      enableGameControls();
+      lockSettings();
+      gameLoop();
+    });
+
+    // Pause button (below canvas)
+    pauseBtn.addEventListener('click', togglePause);
+
+    // Cancel button (below canvas)
+    cancelBtn.addEventListener('click', cancelGame);
+
+    // Cancel button inside the pause overlay
+    overlayCancelBtn.addEventListener('click', cancelGame);
+
+    /* --------------------------------------------------
+       SOUND ENGINE (Web Audio API)
+       All sounds are synthesised entirely in the browser —
+       no audio files needed. The AudioContext is created
+       lazily on the first user gesture (the Start button)
+       to satisfy browser autoplay policy.
+
+       Five distinct sounds:
+         soundPaddle — crisp high click when the ball hits a paddle
+         soundWall   — softer lower tick for top/bottom wall bounces
+         soundScore  — short descending sweep when a point is scored
+         soundWin    — bright ascending 3-note arpeggio when player wins
+         soundLose   — dull descending 3-note arpeggio when CPU wins
+    -------------------------------------------------- */
+    let audioCtx = null;
+
+    // Creates the AudioContext on first call (must follow a user gesture)
+    function ensureAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+    }
+
+    // Core helper: plays a single synthesised tone with an optional
+    // frequency sweep, volume envelope, and oscillator wave shape.
+    //   freq     — start frequency in Hz
+    //   freqEnd  — end frequency (same as freq for a steady note)
+    //   duration — length of the sound in seconds
+    //   volume   — peak gain (0-1)
+    //   type     — oscillator type: sine | square | triangle | sawtooth
+    function playTone(freq, freqEnd, duration, volume, type) {
+      type = type || 'sine';
+      if (!audioCtx) return;
+      const osc  = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(
+        Math.max(freqEnd, 1),
+        audioCtx.currentTime + duration
+      );
+      // Instant attack then fade to silence (avoids audible click at end)
+      gain.gain.setValueAtTime(volume, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(audioCtx.currentTime);
+      osc.stop(audioCtx.currentTime + duration + 0.01);
+    }
+
+    // Paddle hit — sharp square-wave tick, pitch drops slightly
+    function soundPaddle() {
+      ensureAudio();
+      playTone(480, 340, 0.07, 0.45, 'square');
+    }
+
+    // Wall bounce — softer, lower tick
+    function soundWall() {
+      ensureAudio();
+      playTone(260, 210, 0.06, 0.28, 'square');
+    }
+
+    // Point scored — descending sine sweep
+    function soundScore() {
+      ensureAudio();
+      playTone(330, 150, 0.28, 0.4, 'sine');
+    }
+
+    // Player wins — bright ascending three-note arpeggio (C5 E5 G5)
+    function soundWin() {
+      ensureAudio();
+      [523, 659, 784].forEach(function(freq, i) {
+        const t    = audioCtx.currentTime + i * 0.13;
+        const osc  = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.45, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(t);
+        osc.stop(t + 0.32);
+      });
+    }
+
+    // CPU wins — dull descending three-note arpeggio (G4 E4 C4)
+    function soundLose() {
+      ensureAudio();
+      [392, 330, 262].forEach(function(freq, i) {
+        const t    = audioCtx.currentTime + i * 0.16;
+        const osc  = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.38, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.32);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(t);
+        osc.stop(t + 0.36);
+      });
+    }
+
+    /* --------------------------------------------------
+       GAME LOOP — runs every animation frame (~60fps)
+    -------------------------------------------------- */
+    function gameLoop() {
+      if (!gameRunning || gamePaused) return;
+      update();
+      draw();
+      animId = requestAnimationFrame(gameLoop);
+    }
+
+    /* --------------------------------------------------
+       UPDATE — all physics, AI, collision detection, and scoring
+       Called once per frame by gameLoop()
+    -------------------------------------------------- */
+    function update() {
+      const cfg = getDiffConfig();
+
+      /* ---- PLAYER PADDLE MOVEMENT ----
+         Supports both keyboard (arrow keys) and mouse.
+         Mouse: paddle centre follows the cursor Y on the canvas.
+         Keyboard: 5px per frame up/down.
+         Mouse takes priority when the cursor is over the canvas;
+         arrow keys take over when the mouse leaves.
+      */
+      if (mouseY !== null) {
+        player.y = mouseY - PADDLE_H / 2;
+      } else {
+        if (keys['ArrowUp'])   player.y -= 5;
+        if (keys['ArrowDown']) player.y += 5;
+      }
+      player.y = Math.max(0, Math.min(H - PADDLE_H, player.y));
+
+      /* ---- CPU AI MOVEMENT ----
+         The CPU tries to centre its paddle on the ball each frame,
+         but is constrained by cpuSpeed (max movement per frame) and
+         cpuJitter (random error added to its target position).
+         Higher jitter = less accurate = easier to beat.
+      */
+      const cpuCenter  = cpu.y + PADDLE_H / 2;
+      const jitter     = (Math.random() * cfg.cpuJitter) - (cfg.cpuJitter / 2);
+      const targetY    = ball.y + jitter;
+
+      if (cpuCenter < targetY - 4) cpu.y += cfg.cpuSpeed;
+      if (cpuCenter > targetY + 4) cpu.y -= cfg.cpuSpeed;
+      cpu.y = Math.max(0, Math.min(H - PADDLE_H, cpu.y));
+
+      /* ---- BALL MOVEMENT ----
+         Simple Euler integration: position += velocity each frame.
+      */
+      ball.x += ball.vx;
+      ball.y += ball.vy;
+
+      /* ---- TOP / BOTTOM WALL BOUNCE ----
+         Flip vertical velocity and nudge ball back inside bounds
+         to prevent it from tunnelling through the wall.
+      */
+      if (ball.y - ball.r < 0) {
+        ball.y  = ball.r;
+        ball.vy = Math.abs(ball.vy);  // force downward
+        soundWall();
+      }
+      if (ball.y + ball.r > H) {
+        ball.y  = H - ball.r;
+        ball.vy = -Math.abs(ball.vy); // force upward
+        soundWall();
+      }
+
+      /* ---- PLAYER PADDLE COLLISION (left paddle) ----
+         Conditions: ball is moving left, ball's left edge overlaps
+         the paddle's right face, and ball Y is within paddle height.
+
+         The bounce angle depends on WHERE on the paddle the ball hits:
+         - Centre hit  → nearly horizontal return
+         - Edge hit    → steep angle (up to ±60°)
+         This gives the player control over shot placement.
+
+         Speed increases 3% per hit to keep rallies from going on forever.
+      */
+      if (
+        ball.vx < 0 &&
+        ball.x - ball.r < player.x + player.w &&
+        ball.x - ball.r > player.x &&
+        ball.y > player.y &&
+        ball.y < player.y + PADDLE_H
+      ) {
+        const hitRatio  = (ball.y - (player.y + PADDLE_H / 2)) / (PADDLE_H / 2); // -1 to +1
+        const bounceAng = hitRatio * 60 * (Math.PI / 180); // map to ±60°
+        const speed     = Math.sqrt(ball.vx ** 2 + ball.vy ** 2) * 1.03;
+        ball.vx = Math.cos(bounceAng) * speed;  // now positive (rightward)
+        ball.vy = Math.sin(bounceAng) * speed;
+        ball.x  = player.x + player.w + ball.r; // push ball clear to prevent double-hit
+        soundPaddle();
+      }
+
+      /* ---- CPU PADDLE COLLISION (right paddle) ----
+         Same logic as player collision, mirrored horizontally.
+      */
+      if (
+        ball.vx > 0 &&
+        ball.x + ball.r > cpu.x &&
+        ball.x + ball.r < cpu.x + cpu.w &&
+        ball.y > cpu.y &&
+        ball.y < cpu.y + PADDLE_H
+      ) {
+        const hitRatio  = (ball.y - (cpu.y + PADDLE_H / 2)) / (PADDLE_H / 2);
+        const bounceAng = hitRatio * 60 * (Math.PI / 180);
+        const speed     = Math.sqrt(ball.vx ** 2 + ball.vy ** 2) * 1.03;
+        ball.vx = -Math.cos(bounceAng) * speed; // now negative (leftward)
+        ball.vy =  Math.sin(bounceAng) * speed;
+        ball.x  = cpu.x - ball.r;
+        soundPaddle();
+      }
+
+      /* ---- SCORING ----
+         Ball exits left edge  → CPU scores a point
+         Ball exits right edge → Player scores a point
+         After scoring, check for win, then reset the ball.
+      */
+      if (ball.x + ball.r < 0) {
+        cpuScore++;
+        cpuScoreEl.textContent = cpuScore;
+        triggerScoreFx(W * 0.75, H * 0.4, '+1');
+        soundScore();
+        checkWin();
+        if (gameRunning) resetBall(false); // serve toward player
+      }
+
+      if (ball.x - ball.r > W) {
+        playerScore++;
+        playerScoreEl.textContent = playerScore;
+        triggerScoreFx(W * 0.25, H * 0.4, '+1');
+        soundScore();
+        checkWin();
+        if (gameRunning) resetBall(true); // serve toward CPU
+      }
+
+      /* ---- SCORE FX FADE ----
+         Decrement timer and fade alpha so +1 disappears smoothly.
+      */
+      if (scoreFx) {
+        scoreFx.timer--;
+        scoreFx.alpha = scoreFx.timer / 60;
+        if (scoreFx.timer <= 0) scoreFx = null;
+      }
+    }
+
+    /* --------------------------------------------------
+       DRAW — renders the complete frame to the canvas
+       Called once per frame by gameLoop()
+    -------------------------------------------------- */
+    function draw() {
+      /* ---- TABLE SURFACE (green felt) ---- */
+      ctx.fillStyle = COLOR_TABLE;
+      ctx.fillRect(0, 0, W, H);
+
+      /* ---- TABLE EDGE LINES (top & bottom borders) ---- */
+      ctx.strokeStyle = COLOR_LINES;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(0, 3);   ctx.lineTo(W, 3);    // top
+      ctx.moveTo(0, H-3); ctx.lineTo(W, H-3);  // bottom
+      ctx.stroke();
+
+      /* ---- CENTRE DASHED LINE ---- */
+      ctx.strokeStyle = COLOR_LINES;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([6, 8]);
+      ctx.beginPath();
+      ctx.moveTo(W / 2, 0);
+      ctx.lineTo(W / 2, H);
+      ctx.stroke();
+      ctx.setLineDash([]); // reset to solid
+
+      /* ---- NET ---- */
+      ctx.fillStyle = COLOR_NET;
+      ctx.fillRect(W / 2 - NET_W / 2, 0, NET_W, H);
+      // Net posts at top and bottom
+      ctx.fillStyle = '#a08060';
+      ctx.fillRect(W / 2 - 8, 0,   16, 8);
+      ctx.fillRect(W / 2 - 8, H-8, 16, 8);
+
+      /* ---- PADDLES ---- */
+      drawPaddle(player.x, player.y);
+      drawPaddle(cpu.x,    cpu.y);
+
+      /* ---- BALL ---- */
+      ctx.fillStyle = COLOR_BALL;
+      ctx.beginPath();
+      ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
+      ctx.fill();
+      // Inner shadow for a slight 3-D look
+      ctx.fillStyle = 'rgba(0,0,0,0.12)';
+      ctx.beginPath();
+      ctx.arc(ball.x + 2, ball.y + 2, ball.r - 2, 0, Math.PI * 2);
+      ctx.fill();
+
+      /* ---- SCORE FLASH (+1 effect) ---- */
+      if (scoreFx) {
+        ctx.globalAlpha = scoreFx.alpha;
+        ctx.fillStyle   = '#ffe066';
+        ctx.font        = 'bold 32px Segoe UI';
+        ctx.textAlign   = 'center';
+        ctx.fillText(scoreFx.text, scoreFx.x, scoreFx.y);
+        ctx.globalAlpha = 1;
+        ctx.textAlign   = 'left';
+      }
+    }
+
+    /* --------------------------------------------------
+       DRAW PADDLE
+       Draws a beige rounded rectangle with subtle grip lines.
+       x, y = top-left corner of the paddle
+    -------------------------------------------------- */
+    function drawPaddle(x, y) {
+      const r = 5; // corner radius
+
+      ctx.fillStyle = COLOR_PADDLE;
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + PADDLE_W - r, y);
+      ctx.quadraticCurveTo(x + PADDLE_W, y, x + PADDLE_W, y + r);
+      ctx.lineTo(x + PADDLE_W, y + PADDLE_H - r);
+      ctx.quadraticCurveTo(x + PADDLE_W, y + PADDLE_H, x + PADDLE_W - r, y + PADDLE_H);
+      ctx.lineTo(x + r, y + PADDLE_H);
+      ctx.quadraticCurveTo(x, y + PADDLE_H, x, y + PADDLE_H - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+      ctx.fill();
+
+      // Horizontal grip lines across the paddle face
+      ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+      ctx.lineWidth = 1;
+      for (let i = 1; i < 4; i++) {
+        const ly = y + (PADDLE_H / 4) * i;
+        ctx.beginPath();
+        ctx.moveTo(x + 2, ly);
+        ctx.lineTo(x + PADDLE_W - 2, ly);
+        ctx.stroke();
+      }
+    }
+
+    /* --------------------------------------------------
+       INITIAL IDLE FRAME
+       Draws a static scene behind the start overlay so the
+       canvas isn't blank before the first game begins.
+    -------------------------------------------------- */
+    (function drawIdle() {
+      ctx.fillStyle = COLOR_TABLE;
+      ctx.fillRect(0, 0, W, H);
+
+      ctx.fillStyle = COLOR_NET;
+      ctx.fillRect(W / 2 - NET_W / 2, 0, NET_W, H);
+
+      drawPaddle(player.x, H / 2 - PADDLE_H / 2);
+      drawPaddle(cpu.x,    H / 2 - PADDLE_H / 2);
+
+      ctx.fillStyle = COLOR_BALL;
+      ctx.beginPath();
+      ctx.arc(W / 2, H / 2, BALL_RADIUS, 0, Math.PI * 2);
+      ctx.fill();
+    })();
+  </script>
+
+</body>
+</html>
